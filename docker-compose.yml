@@ -1,0 +1,81 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.4
+    container_name: fp_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/initdb.d:/docker-entrypoint-initdb.d:ro
+
+  redis:
+    image: redis:7-alpine
+    container_name: fp_redis
+    command: ["redis-server"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+  api:
+    build: .
+    container_name: promo_container
+    command: ["/bin/sh","-c","python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"]
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: app.settings
+    volumes:
+      - ./:/code
+    ports:
+      - "${WEB_PORT}:8000"
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  worker:
+    build: .
+    container_name: fp_worker
+    command: ["celery", "-A", "app", "worker", "-l", "INFO"]
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: app.settings
+    volumes:
+      - ./:/code
+    depends_on:
+      api:
+        condition: service_started
+
+  beat:
+    build: .
+    container_name: fp_beat
+    command: ["celery", "-A", "app", "beat", "-l", "INFO"]
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: app.settings
+    volumes:
+      - ./:/code
+    depends_on:
+      api:
+        condition: service_started
+  
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fp_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_LISTEN_PORT: ${PGADMIN_PORT}
+    ports:
+      - "${PGADMIN_PORT:-5050}:${PGADMIN_PORT:-5050}"
+    depends_on:
+      postgres:
+        condition: service_started
+
+volumes:
+  pgdata:
