@@ -174,7 +174,7 @@ En Swagger, pulsa **Authorize → basicAuth** y usa tu usuario/clave.
 ```bash
 docker compose exec api python manage.py migrate
 ```
-Existe archivo de migracion para datos iniciales
+Existe archivo de migracion para datos iniciales.
 Crea usuario, tienda, producto, store_product y promo.
 
 ---
